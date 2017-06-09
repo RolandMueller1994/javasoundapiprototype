@@ -28,7 +28,7 @@ public class Main {
 			DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
 			
 			try {
-				clip = (Clip) mixer.getLine(dataInfo); //obtains a line to the mixer for references, the line isn't actually reserved
+				clip = (Clip) mixer.getLine(dataInfo); //obtains a line to the mixer for references, the line isn't actually reserved yet
 			} catch (LineUnavailableException e) {
 				e.printStackTrace();
 			}
