@@ -2,15 +2,13 @@ package main;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.util.Scanner;
 
 import javax.sound.sampled.AudioFileFormat;
-import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.DataLine;
-import javax.sound.sampled.Line;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
@@ -23,35 +21,67 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  */
 public class Main {
 
-	public static Mixer mixer;
+	public static Mixer playBackMixer, recordMixer;
 	public static Clip clip;
 	public static TargetDataLine line;
 	public static File recordedFilePath = new File("Test.wav");
-	public static int recordingLength = 5000; //in milliseconds
-	
-	public static void main(String[] args){
-		
+	public static int recordingLength;
+
+	public static void main(String[] args) {
+
+		getSoundDevices();
 		recordSound();
-		playSound();				
+		playSound();
 	}
-	
-	public static void recordSound(){
+
+	public static void getSoundDevices() {
+		// Gets all available I/O sound devices
+		Mixer.Info[] soundDevices = AudioSystem.getMixerInfo();
+		System.out.println("Available sound devices:");
+		for (int i = 0; i < soundDevices.length; i++) {
+			System.out.println(i + 1 + ". " + soundDevices[i]);
+		}
+
+		// Gets the mixers for recording and play back by user selection
+		System.out.println("");
+		System.out.print("Enter the device number for sound recording: ");
+		Scanner scanner = new Scanner(System.in);
+		recordMixer = AudioSystem.getMixer(soundDevices[scanner.nextInt() - 1]);
+		System.out.println("Record device: " + recordMixer.getMixerInfo());
+
+		System.out.println("");
+		System.out.print("Enter the device number for play back: ");
+		playBackMixer = AudioSystem.getMixer(soundDevices[scanner.nextInt() - 1]);
+		System.out.println("Play back device: " + playBackMixer.getMixerInfo());
+
+		System.out.println("");
+		System.out.print("Determine recording length (in milliseconds): ");
+		recordingLength = scanner.nextInt();
+	}
+
+	public static void recordSound() {
+
+		// TargetDataLine is a line, which receives audio data from the mixer in
+		// real time (e.g. microphone)
 		DataLine.Info info = new DataLine.Info(TargetDataLine.class, null);
-		
+
 		try {
-			line = (TargetDataLine) AudioSystem.getLine(info);
+			// getLine() obtains a line to the mixer for references, the line
+			// isn't actually reserved yet
+			line = (TargetDataLine) recordMixer.getLine(info);
 		} catch (LineUnavailableException e1) {
 			e1.printStackTrace();
 		}
 		try {
+			// open() reserves the line to the mixer
 			line.open();
-			System.out.println("Recording started");
 		} catch (LineUnavailableException e) {
 			e.printStackTrace();
 		}
 		line.start();
-		Thread recorder = new Thread(new Runnable(){
-			public void run(){
+		System.out.println("Recording started");
+		Thread recorder = new Thread(new Runnable() {
+			public void run() {
 				AudioInputStream audioInputStream = new AudioInputStream(line);
 				try {
 					AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, recordedFilePath);
@@ -60,7 +90,7 @@ public class Main {
 				}
 			}
 		});
-		
+
 		recorder.start();
 		try {
 			Thread.sleep(recordingLength);
@@ -71,38 +101,47 @@ public class Main {
 		line.close();
 		System.out.println("Recording stopped");
 	}
-	
-	public static void playSound(){
-		mixer = AudioSystem.getMixer(null); //NULL gets the system default mixer		
+
+	public static void playSound() {
+
+		// Clip is a line, which sends stored audio data to the mixer (not in
+		// real time, e.g. wave-files)
 		DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
-					
+
 		try {
-			clip = (Clip) mixer.getLine(dataInfo); //obtains a line to the mixer for references, the line isn't actually reserved yet
+			// getLine() obtains a line to the mixer for references, the line
+			// isn't actually reserved yet
+			clip = (Clip) playBackMixer.getLine(dataInfo);
 		} catch (LineUnavailableException e) {
 			e.printStackTrace();
 		}
 
-		try {			
+		try {
 			AudioInputStream audioStream = AudioSystem.getAudioInputStream(recordedFilePath);
-			clip.open(audioStream); //reserves the line to the mixer 
+
+			// open() reserves the line to the mixer
+			clip.open(audioStream);
 		} catch (UnsupportedAudioFileException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
-				e.printStackTrace();
-	    } catch (LineUnavailableException e) {
-	        e.printStackTrace();
-	    }
-		
+			e.printStackTrace();
+		} catch (LineUnavailableException e) {
+			e.printStackTrace();
+		}
+
 		clip.start();
-		do{
+		do {
+			/*
+			 * as long as the clip plays sound, the clip is active. the playback
+			 * is executed in an additional thread beside the main thread. main
+			 * thread won't terminate until playback has finished.
+			 */
 			try {
 				Thread.sleep(50);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-		}while(clip.isActive()); /*as long as the clip plays sound, the clip is active.	
-		 						   the playback is executed in an additional thread beside the main thread.
-		 						   main thread won't terminate until playback has finished*/
+		} while (clip.isActive());
 		clip.stop();
 		clip.close();
 	}
