@@ -5,6 +5,9 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Scanner;
 
 import javax.sound.sampled.AudioFileFormat;
@@ -17,6 +20,7 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.TargetDataLine;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.swing.plaf.SliderUI;
 
 /**
  * 
@@ -33,12 +37,17 @@ public class Main {
 	public static int recordingLength;
 	public static boolean stopped;
 
+	public static boolean startedRecord = false;
+	public static long startRecordTime = 0;
+
+	public static long latency = 10;
+
 	public static void main(String[] args) {
 
 		getSoundDevices();
 		// recordSound();
 		// playClipSound();
-		playRecordWithLatency();
+		playRecordWithLatency2();
 	}
 
 	public static void getSoundDevices() {
@@ -184,7 +193,7 @@ public class Main {
 		Thread recorder = new Thread(new Runnable() {
 			public void run() {
 				int numBytesRead;
-				byte[] data = new byte[targetLine.getBufferSize() / 5];
+				byte[] data = new byte[targetLine.available()];
 				while (!stopped) {
 					// reads data from the targetLine and plays it instantly
 					numBytesRead = targetLine.read(data, 0, data.length);
@@ -207,4 +216,136 @@ public class Main {
 		System.out.println("Recording stopped");
 
 	}
+
+	public static void playRecordWithLatency2() {
+
+		List<Byte> buffer = new LinkedList<>();
+
+		// TargetDataLine is a line, which receives audio data from the mixer in
+		// real time (e.g. microphone). SourceDataLine sends the recorded data
+		// to a mixer (e.g. speaker)
+		DataLine.Info infoTarget = new DataLine.Info(TargetDataLine.class, null);
+		DataLine.Info infoSource = new DataLine.Info(SourceDataLine.class, null);
+
+		try {
+			// getLine() obtains a line to the mixer for references, the line
+			// isn't actually reserved yet
+			targetLine = (TargetDataLine) recordMixer.getLine(infoTarget);
+			sourceLine = (SourceDataLine) playBackMixer.getLine(infoSource);
+
+		} catch (LineUnavailableException e1) {
+			e1.printStackTrace();
+		}
+
+		Thread playThread = new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+
+				while (!(startedRecord && System.currentTimeMillis() > startRecordTime + latency)) {
+					try {
+						Thread.sleep(1);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+
+				try {
+					sourceLine.open();
+				} catch (LineUnavailableException e) {
+
+					e.printStackTrace();
+					return;
+				}
+				sourceLine.start();
+				sourceLine.flush();
+				System.out.println(System.currentTimeMillis());
+				byte[] data;
+				while (!stopped) {
+					// reads data from the targetLine and plays it instantly
+
+					synchronized (buffer) {
+						data = new byte[buffer.size()];
+
+						int i = 0;
+						for (byte act : buffer) {
+							data[i] = act;
+							i++;
+						}
+
+						buffer.clear();
+					}
+					sourceLine.write(data, 0, data.length);
+					try {
+						Thread.sleep(latency / 6);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+		});
+
+		Thread recordThread = new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+
+				try {
+					targetLine.open();
+				} catch (LineUnavailableException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return;
+				}
+				targetLine.start();
+				targetLine.flush();
+
+				while (!stopped) {
+					if (!startedRecord) {
+						startRecordTime = System.currentTimeMillis();
+						System.out.println(startRecordTime);
+						startedRecord = true;
+					}
+
+					// We will only read the current available data. If a fixed
+					// size is read, the read()-call will block until the
+					// requested data are available. This would cause latency.
+					byte[] data = new byte[targetLine.available()];
+					int bytesRead = targetLine.read(data, 0, data.length);
+
+					synchronized (buffer) {
+						for (int i = 0; i < bytesRead; i++) {
+							buffer.add(data[i]);
+						}
+					}
+
+					try {
+						Thread.sleep(latency / 6);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+
+		});
+
+		playThread.start();
+		recordThread.start();
+
+		try {
+			Thread.sleep(recordingLength);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		stopped = true;
+		targetLine.stop();
+		targetLine.close();
+		sourceLine.stop();
+		sourceLine.close();
+		System.out.println("Recording stopped");
+	}
+
 }
