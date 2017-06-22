@@ -60,7 +60,7 @@ public class Main {
 		// Gets all available sound devices
 		Mixer.Info[] soundDevices = AudioSystem.getMixerInfo();
 		
-		// Checks which devices are suitable for recording
+		// Checks which devices are compatible for recording
 		System.out.println("Available sound devices for recording:");
 		DataLine.Info info = new DataLine.Info(TargetDataLine.class, null);
 		for (Mixer.Info i : soundDevices) {
@@ -78,7 +78,7 @@ public class Main {
 		System.out.println("Record device: " + recordMixer.getMixerInfo());
 		
 
-		// Checks which devices are suitable for play back
+		// Checks which devices are compatible for play back
 		counter = 0;
 		System.out.println("");
 		System.out.println("Available sound devices for play back:");
