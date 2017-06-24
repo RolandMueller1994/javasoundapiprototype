@@ -1,28 +1,23 @@
 package main;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
 
 import javax.sound.sampled.AudioFileFormat;
+import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.DataLine;
-import javax.sound.sampled.Line;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
-import javax.sound.sampled.Port;
 import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.TargetDataLine;
 import javax.sound.sampled.UnsupportedAudioFileException;
-import javax.swing.plaf.SliderUI;
+import javax.sound.sampled.AudioFileFormat.Type;
 
 /**
  * 
@@ -47,36 +42,35 @@ public class Main {
 	public static void main(String[] args) {
 
 		getSoundDevices();
-		recordSound();
-		playClipSound();
-		//playRecordWithLatency();
+		 recordSound();
+		 playClipSound();
+		// playRecordWithLatency();
 	}
 
 	public static void getSoundDevices() {
 		Mixer mixer;
 		int counter = 0;
 		Scanner scanner = new Scanner(System.in);
-		
+
 		// Gets all available sound devices
 		Mixer.Info[] soundDevices = AudioSystem.getMixerInfo();
-		
+
 		// Checks which devices are compatible for recording
 		System.out.println("Available sound devices for recording:");
 		DataLine.Info info = new DataLine.Info(TargetDataLine.class, null);
 		for (Mixer.Info i : soundDevices) {
 			mixer = AudioSystem.getMixer(i);
-			if(mixer.isLineSupported(info)){
-				System.out.println(counter + 1 + ". " + i);	
+			if (mixer.isLineSupported(info)) {
+				System.out.println(counter + 1 + ". " + i);
 			}
 			counter++;
 		}
-		
+
 		// Gets the mixers for recording by user selection
 		System.out.println("");
 		System.out.print("Enter the device number for sound recording: ");
 		recordMixer = AudioSystem.getMixer(soundDevices[scanner.nextInt() - 1]);
 		System.out.println("Record device: " + recordMixer.getMixerInfo());
-		
 
 		// Checks which devices are compatible for play back
 		counter = 0;
@@ -85,12 +79,12 @@ public class Main {
 		info = new DataLine.Info(SourceDataLine.class, null);
 		for (Mixer.Info i : soundDevices) {
 			mixer = AudioSystem.getMixer(i);
-			if(mixer.isLineSupported(info)){
-				System.out.println(counter + 1 + ". " + i);	
+			if (mixer.isLineSupported(info)) {
+				System.out.println(counter + 1 + ". " + i);
 			}
 			counter++;
 		}
-		
+
 		System.out.println("");
 		System.out.print("Enter the device number for play back: ");
 		playBackMixer = AudioSystem.getMixer(soundDevices[scanner.nextInt() - 1]);
@@ -99,6 +93,33 @@ public class Main {
 		System.out.println("");
 		System.out.print("Determine recording length (in milliseconds): ");
 		recordingLength = scanner.nextInt();
+
+		DataLine.Info infoTarget = new DataLine.Info(TargetDataLine.class, null);
+		try {
+			targetLine = (TargetDataLine) recordMixer.getLine(infoTarget);
+		} catch (LineUnavailableException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		try {
+			// Just for illustration...
+			// Obtains the current format of the data line's audio data
+			// Shows among others the sample frequency and number of bits per
+			// taken sample
+			targetLine.open();
+			System.out.println(targetLine.getFormat());
+			targetLine.close();
+
+			// Just for illustration...
+			// Change the current format of the data line's audio data
+			AudioFormat audioFormat = new AudioFormat(44100, 9, 1, true, false);
+			targetLine.open(audioFormat);
+			System.out.println(targetLine.getFormat());
+			targetLine.close();
+		} catch (LineUnavailableException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	public static void recordSound() {
